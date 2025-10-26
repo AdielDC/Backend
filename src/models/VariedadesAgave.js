@@ -4,35 +4,42 @@ const { sequelize } = require('../config/database');
 const VariedadesAgave = sequelize.define('VariedadesAgave', {
   id: {
     type: DataTypes.INTEGER,
-    autoIncrement: true,
     primaryKey: true,
+    autoIncrement: true
   },
   nombre: {
     type: DataTypes.STRING(100),
     allowNull: false,
     unique: true,
     validate: {
-      isIn: [['Espadín', 'Tobalá', 'Cuishe', 'Arroqueño']],
+      notEmpty: { msg: 'El nombre de la variedad es requerido' }
     },
+    comment: 'Espadín, Tobalá, Cuishe, Arroqueño, etc'
   },
   region: {
     type: DataTypes.STRING(100),
-    allowNull: true,
+    allowNull: true
   },
   descripcion: {
     type: DataTypes.TEXT,
-    allowNull: true,
+    allowNull: true
   },
   creado_en: {
     type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW,
-  },
+    defaultValue: DataTypes.NOW
+  }
 }, {
   tableName: 'VARIEDADES_AGAVE',
-  timestamps: false,
+  timestamps: true,
+  createdAt: 'creado_en',
+  updatedAt: false,
   indexes: [
-    { unique: true, fields: ['nombre'] },
-  ],
+    {
+      unique: true,
+      fields: ['nombre']
+    }
+  ]
 });
+
 
 module.exports = VariedadesAgave;

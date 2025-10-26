@@ -8,6 +8,13 @@
     "dev": "nodemon src/server.js",
     "test": "jest"
   },
+  "keywords": [
+    "inventario",
+    "mezcal",
+    "express",
+    "sequelize",
+    "mysql"
+  ],
   "author": "Adiel Dc",
   "license": "ISC",
   "dependencies": {

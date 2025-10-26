@@ -17,75 +17,169 @@ const MovimientosInventario = require('./MovimientosInventario');
 const LotesProduccion = require('./LotesProduccion');
 const AlertasInventario = require('./AlertasInventario');
 
-// Debugging to catch invalid models
-const models = {
-  Usuario,
-  Cliente,
-  Marca,
-  Presentacion,
-  CategoriaInsumo,
-  VariedadesAgave,
-  Proveedor,
-  Inventario,
-  Recepcion,
-  DetalleRecepcion,
-  Entrega,
-  DetalleEntrega,
-  MovimientosInventario,
-  LotesProduccion,
-  AlertasInventario,
-};
+// ==================== RELACIONES ====================
 
-Object.entries(models).forEach(([name, Model]) => {
-  if (!Model || typeof Model.hasMany !== 'function') {
-    console.error(`${name} is not a valid Sequelize model`);
-  }
+// MARCA - CLIENTE
+Marca.belongsTo(Cliente, { 
+  foreignKey: 'cliente_id', 
+  as: 'cliente' 
+});
+Cliente.hasMany(Marca, { 
+  foreignKey: 'cliente_id', 
+  as: 'marcas' 
 });
 
-// Asociaciones
-Usuario.hasMany(Recepcion, { foreignKey: 'usuario_id' });
-Usuario.hasMany(Entrega, { foreignKey: 'usuario_id' });
-Usuario.hasMany(MovimientosInventario, { foreignKey: 'usuario_id' });
-Usuario.hasMany(AlertasInventario, { foreignKey: 'resuelta_por', as: 'Resolver' });
+// INVENTARIO - Relaciones múltiples
+Inventario.belongsTo(CategoriaInsumo, { 
+  foreignKey: 'categoria_insumo_id', 
+  as: 'categoria' 
+});
 
-Cliente.hasMany(Marca, { foreignKey: 'cliente_id' });
-Cliente.hasMany(Inventario, { foreignKey: 'cliente_id' });
-Cliente.hasMany(Recepcion, { foreignKey: 'cliente_id' });
-Cliente.hasMany(Entrega, { foreignKey: 'cliente_id' });
-Cliente.hasMany(LotesProduccion, { foreignKey: 'cliente_id' });
+Inventario.belongsTo(Cliente, { 
+  foreignKey: 'cliente_id', 
+  as: 'cliente' 
+});
 
-Marca.hasMany(Inventario, { foreignKey: 'marca_id' });
-Marca.hasMany(LotesProduccion, { foreignKey: 'marca_id' });
+Inventario.belongsTo(Marca, { 
+  foreignKey: 'marca_id', 
+  as: 'marca' 
+});
 
-Presentacion.hasMany(Inventario, { foreignKey: 'presentacion_id' });
-Presentacion.hasMany(LotesProduccion, { foreignKey: 'presentacion_id' });
+Inventario.belongsTo(VariedadesAgave, { 
+  foreignKey: 'variedad_agave_id', 
+  as: 'variedad' 
+});
 
-CategoriaInsumo.hasMany(Inventario, { foreignKey: 'categoria_insumo_id' });
+Inventario.belongsTo(Presentacion, { 
+  foreignKey: 'presentacion_id', 
+  as: 'presentacion' 
+});
 
-VariedadesAgave.hasMany(Inventario, { foreignKey: 'variedad_agave_id' });
-VariedadesAgave.hasMany(LotesProduccion, { foreignKey: 'variedad_agave_id' });
+Inventario.belongsTo(Proveedor, { 
+  foreignKey: 'proveedor_id', 
+  as: 'proveedor' 
+});
 
-Proveedor.hasMany(Inventario, { foreignKey: 'proveedor_id' });
-Proveedor.hasMany(Recepcion, { foreignKey: 'proveedor_id' });
+// RECEPCION - Relaciones
+Recepcion.belongsTo(Proveedor, { 
+  foreignKey: 'proveedor_id', 
+  as: 'proveedor' 
+});
 
-Inventario.hasMany(DetalleRecepcion, { foreignKey: 'inventario_id' });
-Inventario.hasMany(DetalleEntrega, { foreignKey: 'inventario_id' });
-Inventario.hasMany(MovimientosInventario, { foreignKey: 'inventario_id' });
-Inventario.hasMany(AlertasInventario, { foreignKey: 'inventario_id' });
+Recepcion.belongsTo(Cliente, { 
+  foreignKey: 'cliente_id', 
+  as: 'cliente' 
+});
 
-Recepcion.hasMany(DetalleRecepcion, { foreignKey: 'recepcion_id' });
-Recepcion.hasMany(MovimientosInventario, { foreignKey: 'recepcion_id' });
+Recepcion.belongsTo(Usuario, { 
+  foreignKey: 'usuario_id', 
+  as: 'usuario' 
+});
 
-Entrega.hasMany(DetalleEntrega, { foreignKey: 'entrega_id' });
-Entrega.hasMany(MovimientosInventario, { foreignKey: 'entrega_id' });
-Entrega.belongsTo(LotesProduccion, { foreignKey: 'lote_produccion_id' });
+Recepcion.hasMany(DetalleRecepcion, { 
+  foreignKey: 'recepcion_id', 
+  as: 'detalles',
+  onDelete: 'CASCADE'
+});
 
-LotesProduccion.hasMany(Entrega, { foreignKey: 'lote_produccion_id' });
+// DETALLE_RECEPCION - Relaciones
+DetalleRecepcion.belongsTo(Recepcion, { 
+  foreignKey: 'recepcion_id', 
+  as: 'recepcion' 
+});
 
-// Sincronización de modelos
-sequelize.sync({ alter: true }).then(() => {
-  console.log('Modelos sincronizados con la base de datos');
-}).catch(err => console.error('Error al sincronizar modelos:', err));
+DetalleRecepcion.belongsTo(Inventario, { 
+  foreignKey: 'inventario_id', 
+  as: 'inventario' 
+});
+
+// ENTREGA - Relaciones
+Entrega.belongsTo(LotesProduccion, { 
+  foreignKey: 'lote_produccion_id', 
+  as: 'lote' 
+});
+
+Entrega.belongsTo(Cliente, { 
+  foreignKey: 'cliente_id', 
+  as: 'cliente' 
+});
+
+Entrega.belongsTo(Usuario, { 
+  foreignKey: 'usuario_id', 
+  as: 'usuario' 
+});
+
+Entrega.hasMany(DetalleEntrega, { 
+  foreignKey: 'entrega_id', 
+  as: 'detalles',
+  onDelete: 'CASCADE'
+});
+
+// DETALLE_ENTREGA - Relaciones
+DetalleEntrega.belongsTo(Entrega, { 
+  foreignKey: 'entrega_id', 
+  as: 'entrega' 
+});
+
+DetalleEntrega.belongsTo(Inventario, { 
+  foreignKey: 'inventario_id', 
+  as: 'inventario' 
+});
+
+// MOVIMIENTOS_INVENTARIO - Relaciones
+MovimientosInventario.belongsTo(Inventario, { 
+  foreignKey: 'inventario_id', 
+  as: 'inventario' 
+});
+
+MovimientosInventario.belongsTo(Usuario, { 
+  foreignKey: 'usuario_id', 
+  as: 'usuario' 
+});
+
+MovimientosInventario.belongsTo(Recepcion, { 
+  foreignKey: 'recepcion_id', 
+  as: 'recepcion' 
+});
+
+MovimientosInventario.belongsTo(Entrega, { 
+  foreignKey: 'entrega_id', 
+  as: 'entrega' 
+});
+
+// LOTES_PRODUCCION - Relaciones
+LotesProduccion.belongsTo(Cliente, { 
+  foreignKey: 'cliente_id', 
+  as: 'cliente' 
+});
+
+LotesProduccion.belongsTo(Marca, { 
+  foreignKey: 'marca_id', 
+  as: 'marca' 
+});
+
+LotesProduccion.belongsTo(VariedadesAgave, { 
+  foreignKey: 'variedad_agave_id', 
+  as: 'variedad' 
+});
+
+LotesProduccion.belongsTo(Presentacion, { 
+  foreignKey: 'presentacion_id', 
+  as: 'presentacion' 
+});
+
+// ALERTAS_INVENTARIO - Relaciones
+AlertasInventario.belongsTo(Inventario, { 
+  foreignKey: 'inventario_id', 
+  as: 'inventario' 
+});
+
+AlertasInventario.belongsTo(Usuario, { 
+  foreignKey: 'resuelta_por', 
+  as: 'resuelta_por_usuario' 
+});
+
+// ==================== EXPORTAR ====================
 
 module.exports = {
   sequelize,
@@ -103,5 +197,5 @@ module.exports = {
   DetalleEntrega,
   MovimientosInventario,
   LotesProduccion,
-  AlertasInventario,
+  AlertasInventario
 };

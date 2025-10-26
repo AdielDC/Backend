@@ -1,553 +1,479 @@
-// controllers/inventarioController.js
 const { 
   Inventario, 
   CategoriaInsumo, 
   Cliente, 
   Marca, 
-  VariedadAgave, 
+  VariedadesAgave, 
   Presentacion, 
   Proveedor,
-  MovimientoInventario,
-  Usuario,
-  AlertaInventario
+  MovimientosInventario,
+  AlertasInventario
 } = require('../models');
 const { Op } = require('sequelize');
 
-const inventarioController = {
-  // Obtener todos los insumos con filtros opcionales
-  async getAllInsumos(req, res) {
-    try {
-      const {
-        categoriaId,
-        clienteId,
-        marcaId,
-        variedadId,
-        presentacionId,
-        tipo,
-        search,
-        stockLevel,
-        activo = true
-      } = req.query;
+// Obtener todo el inventario con filtros y búsqueda
+exports.obtenerInventario = async (req, res) => {
+  try {
+    const { 
+      categoria, 
+      cliente, 
+      variedad, 
+      presentacion, 
+      tipo, 
+      search 
+    } = req.query;
 
-      const whereClause = { activo };
-
-      // Aplicar filtros
-      if (categoriaId) whereClause.categoriaInsumoId = categoriaId;
-      if (clienteId) whereClause.clienteId = clienteId;
-      if (marcaId) whereClause.marcaId = marcaId;
-      if (variedadId) whereClause.variedadAgaveId = variedadId;
-      if (presentacionId) whereClause.presentacionId = presentacionId;
-      if (tipo) whereClause.tipo = tipo;
-
-      // Búsqueda por texto en código de lote
-      if (search) {
-        whereClause.codigoLote = { [Op.like]: `%${search}%` };
-      }
-
-      let insumos = await Inventario.findAll({
-        where: whereClause,
-        include: [
-          { model: CategoriaInsumo, as: 'categoria', attributes: ['id', 'nombre', 'unidadMedida'] },
-          { model: Cliente, as: 'cliente', attributes: ['id', 'nombre'] },
-          { model: Marca, as: 'marca', attributes: ['id', 'nombre'] },
-          { model: VariedadAgave, as: 'variedad', attributes: ['id', 'nombre', 'region'] },
-          { model: Presentacion, as: 'presentacion', attributes: ['id', 'volumen'] },
-          { model: Proveedor, as: 'proveedor', attributes: ['id', 'nombre'] }
-        ],
-        order: [['categoria', 'nombre', 'ASC'], ['cliente', 'nombre', 'ASC']]
+    // Construir filtros dinámicos
+    const where = { activo: true };
+    
+    if (categoria && categoria !== 'all') {
+      const categoriaObj = await CategoriaInsumo.findOne({ 
+        where: { nombre: categoria } 
       });
-
-      // Filtrar por nivel de stock si se especifica
-      if (stockLevel) {
-        insumos = insumos.filter(insumo => {
-          if (stockLevel === 'critical') return insumo.isCriticalStock();
-          if (stockLevel === 'low') return insumo.isLowStock() && !insumo.isCriticalStock();
-          if (stockLevel === 'adequate') return !insumo.isLowStock();
-          return true;
-        });
-      }
-
-      // Agregar información de nivel de stock
-      const insumosWithStockLevel = insumos.map(insumo => ({
-        ...insumo.toJSON(),
-        stockLevel: insumo.getStockLevel(),
-        isLowStock: insumo.isLowStock(),
-        isCriticalStock: insumo.isCriticalStock()
-      }));
-
-      res.json({
-        success: true,
-        count: insumosWithStockLevel.length,
-        data: insumosWithStockLevel
-      });
-    } catch (error) {
-      console.error('Error al obtener insumos:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Error al obtener los insumos',
-        error: error.message
-      });
+      if (categoriaObj) where.categoria_insumo_id = categoriaObj.id;
     }
-  },
 
-  // Obtener un insumo por ID
-  async getInsumoById(req, res) {
-    try {
-      const { id } = req.params;
-      
-      const insumo = await Inventario.findByPk(id, {
-        include: [
-          { model: CategoriaInsumo, as: 'categoria' },
-          { model: Cliente, as: 'cliente' },
-          { model: Marca, as: 'marca' },
-          { model: VariedadAgave, as: 'variedad' },
-          { model: Presentacion, as: 'presentacion' },
-          { model: Proveedor, as: 'proveedor' },
-          {
-            model: MovimientoInventario,
-            as: 'movimientos',
-            limit: 10,
-            order: [['fechaMovimiento', 'DESC']],
-            include: [{ model: Usuario, as: 'usuario', attributes: ['id', 'nombre'] }]
-          }
+    if (cliente && cliente !== 'all') {
+      const clienteObj = await Cliente.findOne({ 
+        where: { nombre: cliente } 
+      });
+      if (clienteObj) where.cliente_id = clienteObj.id;
+    }
+
+    if (tipo && tipo !== 'all') {
+      where.tipo = tipo;
+    }
+
+    // Búsqueda por texto
+    let searchWhere = {};
+    if (search) {
+      searchWhere = {
+        [Op.or]: [
+          { codigo_lote: { [Op.like]: `%${search}%` } },
+          { unidad: { [Op.like]: `%${search}%` } }
         ]
-      });
-
-      if (!insumo) {
-        return res.status(404).json({
-          success: false,
-          message: 'Insumo no encontrado'
-        });
-      }
-
-      res.json({
-        success: true,
-        data: {
-          ...insumo.toJSON(),
-          stockLevel: insumo.getStockLevel(),
-          isLowStock: insumo.isLowStock(),
-          isCriticalStock: insumo.isCriticalStock()
-        }
-      });
-    } catch (error) {
-      console.error('Error al obtener insumo:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Error al obtener el insumo',
-        error: error.message
-      });
+      };
     }
-  },
 
-  // Crear un nuevo insumo
-  async createInsumo(req, res) {
-    try {
-      const insumoData = req.body;
-      
-      // Validar que existan las relaciones
-      const [categoria, cliente, marca, variedad, presentacion, proveedor] = await Promise.all([
-        CategoriaInsumo.findByPk(insumoData.categoriaInsumoId),
-        Cliente.findByPk(insumoData.clienteId),
-        Marca.findByPk(insumoData.marcaId),
-        VariedadAgave.findByPk(insumoData.variedadAgaveId),
-        Presentacion.findByPk(insumoData.presentacionId),
-        Proveedor.findByPk(insumoData.proveedorId)
-      ]);
+    const inventario = await Inventario.findAll({
+      where: { ...where, ...searchWhere },
+      include: [
+        { model: CategoriaInsumo, as: 'categoria' },
+        { model: Cliente, as: 'cliente' },
+        { model: Marca, as: 'marca' },
+        { model: VariedadesAgave, as: 'variedad' },
+        { model: Presentacion, as: 'presentacion' },
+        { model: Proveedor, as: 'proveedor' }
+      ],
+      order: [['ultima_actualizacion', 'DESC']]
+    });
 
-      if (!categoria || !cliente || !marca || !variedad || !presentacion || !proveedor) {
-        return res.status(400).json({
-          success: false,
-          message: 'Una o más relaciones no existen',
-          missing: {
-            categoria: !categoria,
-            cliente: !cliente,
-            marca: !marca,
-            variedad: !variedad,
-            presentacion: !presentacion,
-            proveedor: !proveedor
-          }
-        });
+    // Detectar items con stock bajo o crítico
+    const itemsConAlerta = inventario.filter(item => {
+      if (item.stock_minimo) {
+        return item.stock < item.stock_minimo;
       }
+      return false;
+    });
 
-      const newInsumo = await Inventario.create(insumoData);
-
-      // Cargar las relaciones
-      await newInsumo.reload({
-        include: [
-          { model: CategoriaInsumo, as: 'categoria' },
-          { model: Cliente, as: 'cliente' },
-          { model: Marca, as: 'marca' },
-          { model: VariedadAgave, as: 'variedad' },
-          { model: Presentacion, as: 'presentacion' },
-          { model: Proveedor, as: 'proveedor' }
-        ]
-      });
-
-      res.status(201).json({
-        success: true,
-        message: 'Insumo creado exitosamente',
-        data: newInsumo
-      });
-    } catch (error) {
-      console.error('Error al crear insumo:', error);
-      
-      if (error.name === 'SequelizeValidationError') {
-        return res.status(400).json({
-          success: false,
-          message: 'Datos de validación incorrectos',
-          errors: error.errors.map(e => ({ field: e.path, message: e.message }))
-        });
+    res.json({
+      success: true,
+      data: inventario,
+      alertas: {
+        stockBajo: itemsConAlerta.filter(i => i.stock > i.stock_minimo * 0.3).length,
+        stockCritico: itemsConAlerta.filter(i => i.stock <= i.stock_minimo * 0.3).length
       }
-
-      if (error.name === 'SequelizeUniqueConstraintError') {
-        return res.status(409).json({
-          success: false,
-          message: 'El código de lote ya existe en el sistema'
-        });
-      }
-
-      res.status(500).json({
-        success: false,
-        message: 'Error al crear el insumo',
-        error: error.message
-      });
-    }
-  },
-
-  // Actualizar un insumo
-  async updateInsumo(req, res) {
-    try {
-      const { id } = req.params;
-      const updateData = req.body;
-
-      const insumo = await Inventario.findByPk(id);
-
-      if (!insumo) {
-        return res.status(404).json({
-          success: false,
-          message: 'Insumo no encontrado'
-        });
-      }
-
-      // No permitir actualizar el stock directamente
-      delete updateData.stock;
-
-      await insumo.update(updateData);
-
-      // Recargar con relaciones
-      await insumo.reload({
-        include: [
-          { model: CategoriaInsumo, as: 'categoria' },
-          { model: Cliente, as: 'cliente' },
-          { model: Marca, as: 'marca' },
-          { model: VariedadAgave, as: 'variedad' },
-          { model: Presentacion, as: 'presentacion' },
-          { model: Proveedor, as: 'proveedor' }
-        ]
-      });
-
-      res.json({
-        success: true,
-        message: 'Insumo actualizado exitosamente',
-        data: insumo
-      });
-    } catch (error) {
-      console.error('Error al actualizar insumo:', error);
-      
-      if (error.name === 'SequelizeValidationError') {
-        return res.status(400).json({
-          success: false,
-          message: 'Datos de validación incorrectos',
-          errors: error.errors.map(e => ({ field: e.path, message: e.message }))
-        });
-      }
-
-      res.status(500).json({
-        success: false,
-        message: 'Error al actualizar el insumo',
-        error: error.message
-      });
-    }
-  },
-
-  // Eliminar (desactivar) un insumo
-  async deleteInsumo(req, res) {
-    try {
-      const { id } = req.params;
-
-      const insumo = await Inventario.findByPk(id);
-
-      if (!insumo) {
-        return res.status(404).json({
-          success: false,
-          message: 'Insumo no encontrado'
-        });
-      }
-
-      // Desactivar en lugar de eliminar
-      await insumo.update({ activo: false });
-
-      res.json({
-        success: true,
-        message: 'Insumo desactivado exitosamente'
-      });
-    } catch (error) {
-      console.error('Error al eliminar insumo:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Error al eliminar el insumo',
-        error: error.message
-      });
-    }
-  },
-
-  // Registrar movimiento de inventario
-  async registrarMovimiento(req, res) {
-    try {
-      const { id } = req.params;
-      const { tipoMovimiento, cantidad, usuarioId, razon, referencia, recepcionId, entregaId } = req.body;
-
-      if (!tipoMovimiento || !cantidad || !usuarioId) {
-        return res.status(400).json({
-          success: false,
-          message: 'El tipo de movimiento, cantidad y usuario son requeridos'
-        });
-      }
-
-      const insumo = await Inventario.findByPk(id);
-
-      if (!insumo) {
-        return res.status(404).json({
-          success: false,
-          message: 'Insumo no encontrado'
-        });
-      }
-
-      const result = await insumo.updateStock(
-        parseInt(cantidad),
-        tipoMovimiento,
-        parseInt(usuarioId),
-        { razon, referencia, recepcionId, entregaId }
-      );
-
-      res.json({
-        success: true,
-        message: `${tipoMovimiento.charAt(0).toUpperCase() + tipoMovimiento.slice(1)} registrada exitosamente`,
-        data: {
-          inventario: {
-            ...result.inventario.toJSON(),
-            stockLevel: result.inventario.getStockLevel()
-          },
-          movimiento: result.movimiento
-        }
-      });
-    } catch (error) {
-      console.error('Error al registrar movimiento:', error);
-      res.status(400).json({
-        success: false,
-        message: error.message
-      });
-    }
-  },
-
-  // Obtener alertas de stock bajo
-  async getStockAlerts(req, res) {
-    try {
-      const { resuelta = false } = req.query;
-
-      const alertas = await AlertaInventario.findAll({
-        where: { resuelta: resuelta === 'true' },
-        include: [
-          {
-            model: Inventario,
-            as: 'inventario',
-            include: [
-              { model: CategoriaInsumo, as: 'categoria', attributes: ['nombre'] },
-              { model: Cliente, as: 'cliente', attributes: ['nombre'] },
-              { model: Marca, as: 'marca', attributes: ['nombre'] }
-            ]
-          },
-          {
-            model: Usuario,
-            as: 'usuarioResolucion',
-            attributes: ['id', 'nombre']
-          }
-        ],
-        order: [['fechaAlerta', 'DESC']]
-      });
-
-      const criticalAlertas = alertas.filter(a => a.tipoAlerta === 'stock_critico');
-      const lowAlertas = alertas.filter(a => a.tipoAlerta === 'stock_bajo');
-
-      res.json({
-        success: true,
-        data: {
-          todas: alertas,
-          criticas: criticalAlertas,
-          bajas: lowAlertas,
-          counts: {
-            total: alertas.length,
-            criticas: criticalAlertas.length,
-            bajas: lowAlertas.length
-          }
-        }
-      });
-    } catch (error) {
-      console.error('Error al obtener alertas:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Error al obtener las alertas',
-        error: error.message
-      });
-    }
-  },
-
-  // Obtener historial de movimientos
-  async getMovimientos(req, res) {
-    try {
-      const { id } = req.params;
-      const { limit = 50, offset = 0 } = req.query;
-
-      const insumo = await Inventario.findByPk(id);
-
-      if (!insumo) {
-        return res.status(404).json({
-          success: false,
-          message: 'Insumo no encontrado'
-        });
-      }
-
-      const movimientos = await MovimientoInventario.findAndCountAll({
-        where: { inventarioId: id },
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-        order: [['fechaMovimiento', 'DESC']],
-        include: [
-          {
-            model: Usuario,
-            as: 'usuario',
-            attributes: ['id', 'nombre']
-          }
-        ]
-      });
-
-      res.json({
-        success: true,
-        data: {
-          insumo: {
-            id: insumo.id,
-            codigoLote: insumo.codigoLote
-          },
-          movimientos: movimientos.rows,
-          total: movimientos.count,
-          limit: parseInt(limit),
-          offset: parseInt(offset)
-        }
-      });
-    } catch (error) {
-      console.error('Error al obtener movimientos:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Error al obtener los movimientos',
-        error: error.message
-      });
-    }
-  },
-
-  // Obtener estadísticas generales
-  async getEstadisticas(req, res) {
-    try {
-      const allInsumos = await Inventario.findAll({
-        where: { activo: true },
-        include: [
-          { model: CategoriaInsumo, as: 'categoria', attributes: ['nombre'] },
-          { model: Cliente, as: 'cliente', attributes: ['nombre'] }
-        ]
-      });
-
-      const lowStockItems = allInsumos.filter(i => i.isLowStock());
-      const criticalStockItems = allInsumos.filter(i => i.isCriticalStock());
-
-      // Estadísticas por categoría
-      const categorias = [...new Set(allInsumos.map(i => i.categoria.nombre))];
-      const statsByCategory = categorias.map(categoria => {
-        const items = allInsumos.filter(i => i.categoria.nombre === categoria);
-        return {
-          categoria,
-          total: items.length,
-          lowStock: items.filter(i => i.isLowStock()).length,
-          critical: items.filter(i => i.isCriticalStock()).length
-        };
-      });
-
-      // Estadísticas por cliente
-      const clientes = [...new Set(allInsumos.map(i => i.cliente.nombre))];
-      const statsByClient = clientes.map(cliente => {
-        const items = allInsumos.filter(i => i.cliente.nombre === cliente);
-        return {
-          cliente,
-          total: items.length,
-          lowStock: items.filter(i => i.isLowStock()).length,
-          critical: items.filter(i => i.isCriticalStock()).length
-        };
-      });
-
-      res.json({
-        success: true,
-        data: {
-          totals: {
-            insumos: allInsumos.length,
-            categorias: categorias.length,
-            clientes: clientes.length,
-            lowStock: lowStockItems.length,
-            critical: criticalStockItems.length,
-            adequate: allInsumos.length - lowStockItems.length
-          },
-          byCategory: statsByCategory,
-          byClient: statsByClient
-        }
-      });
-    } catch (error) {
-      console.error('Error al obtener estadísticas:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Error al obtener las estadísticas',
-        error: error.message
-      });
-    }
-  },
-
-  // Obtener opciones para filtros
-  async getFilterOptions(req, res) {
-    try {
-      const [categorias, clientes, marcas, variedades, presentaciones] = await Promise.all([
-        CategoriaInsumo.findAll({ attributes: ['id', 'nombre'], where: { activo: true } }),
-        Cliente.findAll({ attributes: ['id', 'nombre'], where: { activo: true } }),
-        Marca.findAll({ attributes: ['id', 'nombre'], where: { activo: true } }),
-        VariedadAgave.findAll({ attributes: ['id', 'nombre'] }),
-        Presentacion.findAll({ attributes: ['id', 'volumen'], where: { activo: true } })
-      ]);
-
-      res.json({
-        success: true,
-        data: {
-          categorias,
-          clientes,
-          marcas,
-          variedades,
-          presentaciones,
-          tipos: ['Nacional', 'Exportación']
-        }
-      });
-    } catch (error) {
-      console.error('Error al obtener opciones de filtros:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Error al obtener las opciones de filtros',
-        error: error.message
-      });
-    }
+    });
+  } catch (error) {
+    console.error('Error al obtener inventario:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error al obtener el inventario',
+      error: error.message 
+    });
   }
 };
 
-module.exports = inventarioController;
+// Obtener un item específico del inventario
+exports.obtenerItemInventario = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const item = await Inventario.findByPk(id, {
+      include: [
+        { model: CategoriaInsumo, as: 'categoria' },
+        { model: Cliente, as: 'cliente' },
+        { model: Marca, as: 'marca' },
+        { model: VariedadesAgave, as: 'variedad' },
+        { model: Presentacion, as: 'presentacion' },
+        { model: Proveedor, as: 'proveedor' }
+      ]
+    });
+
+    if (!item) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Item de inventario no encontrado' 
+      });
+    }
+
+    res.json({ success: true, data: item });
+  } catch (error) {
+    console.error('Error al obtener item:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error al obtener el item',
+      error: error.message 
+    });
+  }
+};
+
+// Crear nuevo item de inventario
+exports.crearItemInventario = async (req, res) => {
+  try {
+    const nuevoItem = await Inventario.create(req.body);
+    
+    const itemCompleto = await Inventario.findByPk(nuevoItem.id, {
+      include: [
+        { model: CategoriaInsumo, as: 'categoria' },
+        { model: Cliente, as: 'cliente' },
+        { model: Marca, as: 'marca' },
+        { model: VariedadesAgave, as: 'variedad' },
+        { model: Presentacion, as: 'presentacion' },
+        { model: Proveedor, as: 'proveedor' }
+      ]
+    });
+
+    res.status(201).json({ 
+      success: true, 
+      message: 'Item de inventario creado exitosamente',
+      data: itemCompleto 
+    });
+  } catch (error) {
+    console.error('Error al crear item:', error);
+    res.status(400).json({ 
+      success: false, 
+      message: 'Error al crear el item de inventario',
+      error: error.message 
+    });
+  }
+};
+
+// Actualizar item de inventario
+exports.actualizarItemInventario = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const item = await Inventario.findByPk(id);
+
+    if (!item) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Item de inventario no encontrado' 
+      });
+    }
+
+    await item.update(req.body);
+
+    const itemActualizado = await Inventario.findByPk(id, {
+      include: [
+        { model: CategoriaInsumo, as: 'categoria' },
+        { model: Cliente, as: 'cliente' },
+        { model: Marca, as: 'marca' },
+        { model: VariedadesAgave, as: 'variedad' },
+        { model: Presentacion, as: 'presentacion' },
+        { model: Proveedor, as: 'proveedor' }
+      ]
+    });
+
+    res.json({ 
+      success: true, 
+      message: 'Item actualizado exitosamente',
+      data: itemActualizado 
+    });
+  } catch (error) {
+    console.error('Error al actualizar item:', error);
+    res.status(400).json({ 
+      success: false, 
+      message: 'Error al actualizar el item',
+      error: error.message 
+    });
+  }
+};
+
+// Registrar movimiento de inventario (entrada/salida)
+exports.registrarMovimiento = async (req, res) => {
+  try {
+    const { 
+      inventario_id, 
+      tipo_movimiento, 
+      cantidad, 
+      razon, 
+      referencia,
+      usuario_id 
+    } = req.body;
+
+    // Validar datos requeridos
+    if (!inventario_id || !tipo_movimiento || !cantidad || !usuario_id) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Faltan datos requeridos' 
+      });
+    }
+
+    // Obtener item de inventario
+    const item = await Inventario.findByPk(inventario_id);
+    if (!item) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Item de inventario no encontrado' 
+      });
+    }
+
+    const stockAnterior = item.stock;
+    let stockNuevo = stockAnterior;
+
+    // Calcular nuevo stock según tipo de movimiento
+    switch (tipo_movimiento) {
+      case 'entrada':
+        stockNuevo = stockAnterior + parseInt(cantidad);
+        break;
+      case 'salida':
+      case 'desperdicio':
+        stockNuevo = stockAnterior - parseInt(cantidad);
+        if (stockNuevo < 0) {
+          return res.status(400).json({ 
+            success: false, 
+            message: 'Stock insuficiente para realizar la operación' 
+          });
+        }
+        break;
+      case 'ajuste':
+        stockNuevo = parseInt(cantidad);
+        break;
+      default:
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Tipo de movimiento inválido' 
+        });
+    }
+
+    // Actualizar stock
+    await item.update({ stock: stockNuevo });
+
+    // Registrar movimiento
+    const movimiento = await MovimientosInventario.create({
+      inventario_id,
+      usuario_id,
+      tipo_movimiento,
+      cantidad: parseInt(cantidad),
+      stock_anterior: stockAnterior,
+      stock_nuevo: stockNuevo,
+      razon,
+      referencia
+    });
+
+    // Verificar alertas de stock
+    await verificarAlertasStock(item);
+
+    res.json({ 
+      success: true, 
+      message: `${tipo_movimiento.charAt(0).toUpperCase() + tipo_movimiento.slice(1)} registrada exitosamente`,
+      data: {
+        movimiento,
+        stock_anterior: stockAnterior,
+        stock_nuevo: stockNuevo
+      }
+    });
+  } catch (error) {
+    console.error('Error al registrar movimiento:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error al registrar el movimiento',
+      error: error.message 
+    });
+  }
+};
+
+// Obtener historial de movimientos de un item
+exports.obtenerHistorialMovimientos = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { limit = 50, offset = 0 } = req.query;
+
+    const movimientos = await MovimientosInventario.findAll({
+      where: { inventario_id: id },
+      include: [
+        { model: Usuario, as: 'usuario', attributes: ['id', 'nombre', 'email'] }
+      ],
+      order: [['fecha_movimiento', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+
+    res.json({ 
+      success: true, 
+      data: movimientos 
+    });
+  } catch (error) {
+    console.error('Error al obtener historial:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error al obtener el historial',
+      error: error.message 
+    });
+  }
+};
+
+// Obtener alertas de inventario
+exports.obtenerAlertas = async (req, res) => {
+  try {
+    const { vista, resuelta } = req.query;
+
+    const where = {};
+    if (vista !== undefined) where.vista = vista === 'true';
+    if (resuelta !== undefined) where.resuelta = resuelta === 'true';
+
+    const alertas = await AlertasInventario.findAll({
+      where,
+      include: [
+        {
+          model: Inventario,
+          as: 'inventario',
+          include: [
+            { model: CategoriaInsumo, as: 'categoria' },
+            { model: Cliente, as: 'cliente' },
+            { model: Marca, as: 'marca' }
+          ]
+        }
+      ],
+      order: [['fecha_alerta', 'DESC']]
+    });
+
+    res.json({ 
+      success: true, 
+      data: alertas 
+    });
+  } catch (error) {
+    console.error('Error al obtener alertas:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error al obtener alertas',
+      error: error.message 
+    });
+  }
+};
+
+// Marcar alerta como vista
+exports.marcarAlertaVista = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const alerta = await AlertasInventario.findByPk(id);
+    if (!alerta) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Alerta no encontrada' 
+      });
+    }
+
+    await alerta.update({ vista: true });
+
+    res.json({ 
+      success: true, 
+      message: 'Alerta marcada como vista' 
+    });
+  } catch (error) {
+    console.error('Error al marcar alerta:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error al marcar la alerta',
+      error: error.message 
+    });
+  }
+};
+
+// Función auxiliar para verificar alertas de stock
+async function verificarAlertasStock(item) {
+  if (!item.stock_minimo) return;
+
+  const stockCritico = item.stock <= item.stock_minimo * 0.3;
+  const stockBajo = item.stock < item.stock_minimo && !stockCritico;
+
+  if (stockCritico || stockBajo) {
+    // Verificar si ya existe una alerta activa
+    const alertaExistente = await AlertasInventario.findOne({
+      where: {
+        inventario_id: item.id,
+        resuelta: false
+      }
+    });
+
+    if (!alertaExistente) {
+      await AlertasInventario.create({
+        inventario_id: item.id,
+        tipo_alerta: stockCritico ? 'stock_critico' : 'stock_bajo',
+        mensaje: stockCritico 
+          ? `Stock crítico: ${item.stock} ${item.unidad} (mínimo: ${item.stock_minimo})`
+          : `Stock bajo: ${item.stock} ${item.unidad} (mínimo: ${item.stock_minimo})`
+      });
+    }
+  } else {
+    // Si el stock está bien, resolver alertas pendientes
+    await AlertasInventario.update(
+      { resuelta: true, fecha_resolucion: new Date() },
+      {
+        where: {
+          inventario_id: item.id,
+          resuelta: false
+        }
+      }
+    );
+  }
+}
+
+// Obtener opciones para filtros
+exports.obtenerOpcionesFiltros = async (req, res) => {
+  try {
+    const categorias = await CategoriaInsumo.findAll({ 
+      attributes: ['id', 'nombre'],
+      order: [['nombre', 'ASC']]
+    });
+
+    const clientes = await Cliente.findAll({ 
+      where: { activo: true },
+      attributes: ['id', 'nombre'],
+      order: [['nombre', 'ASC']]
+    });
+
+    const variedades = await VariedadesAgave.findAll({ 
+      attributes: ['id', 'nombre'],
+      order: [['nombre', 'ASC']]
+    });
+
+    const presentaciones = await Presentacion.findAll({ 
+      where: { activo: true },
+      attributes: ['id', 'volumen'],
+      order: [['volumen', 'ASC']]
+    });
+
+    const tipos = ['Nacional', 'Exportación'];
+
+    res.json({
+      success: true,
+      data: {
+        categorias,
+        clientes,
+        variedades,
+        presentaciones,
+        tipos
+      }
+    });
+  } catch (error) {
+    console.error('Error al obtener opciones:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error al obtener opciones de filtros',
+      error: error.message 
+    });
+  }
+};

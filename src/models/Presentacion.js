@@ -4,31 +4,33 @@ const { sequelize } = require('../config/database');
 const Presentacion = sequelize.define('Presentacion', {
   id: {
     type: DataTypes.INTEGER,
-    autoIncrement: true,
     primaryKey: true,
+    autoIncrement: true
   },
   volumen: {
     type: DataTypes.STRING(50),
     allowNull: false,
     validate: {
-      isIn: [['50ml', '200ml', '375ml', '500ml', '750ml', '1000ml']],
+      notEmpty: { msg: 'El volumen es requerido' }
     },
+    comment: '50ml, 200ml, 375ml, 500ml, 750ml, 1000ml'
   },
   descripcion: {
     type: DataTypes.TEXT,
-    allowNull: true,
+    allowNull: true
   },
   activo: {
     type: DataTypes.BOOLEAN,
-    defaultValue: true,
+    defaultValue: true
   },
   creado_en: {
     type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW,
-  },
+    defaultValue: DataTypes.NOW
+  }
 }, {
   tableName: 'PRESENTACION',
-  timestamps: false,
+  timestamps: true,
+  createdAt: 'creado_en',
+  updatedAt: false
 });
-
 module.exports = Presentacion;
