@@ -7,7 +7,8 @@ const {
   Presentacion, 
   Proveedor,
   MovimientosInventario,
-  AlertasInventario
+  AlertasInventario,
+  Usuario
 } = require('../models');
 const { Op } = require('sequelize');
 
@@ -258,7 +259,10 @@ exports.registrarMovimiento = async (req, res) => {
     }
 
     // Actualizar stock
-    await item.update({ stock: stockNuevo });
+    await item.update({ 
+      stock: stockNuevo,
+      ultima_actualizacion: new Date()
+    });
 
     // Registrar movimiento
     const movimiento = await MovimientosInventario.create({
@@ -303,7 +307,12 @@ exports.obtenerHistorialMovimientos = async (req, res) => {
     const movimientos = await MovimientosInventario.findAll({
       where: { inventario_id: id },
       include: [
-        { model: Usuario, as: 'usuario', attributes: ['id', 'nombre', 'email'] }
+        { 
+          model: Usuario, 
+          as: 'usuario', 
+          attributes: ['id', 'nombre', 'email'],
+          required: false
+        }
       ],
       order: [['fecha_movimiento', 'DESC']],
       limit: parseInt(limit),
@@ -477,3 +486,91 @@ exports.obtenerOpcionesFiltros = async (req, res) => {
     });
   }
 };
+
+// ========== FUNCIONES ADICIONALES PARA COMPATIBILIDAD CON FRONTEND ==========
+
+// Obtener items con stock bajo
+exports.getStockBajo = async (req, res) => {
+  try {
+    const inventario = await Inventario.findAll({
+      where: { activo: true },
+      include: [
+        { model: CategoriaInsumo, as: 'categoria' },
+        { model: Cliente, as: 'cliente' },
+        { model: Marca, as: 'marca' },
+        { model: VariedadesAgave, as: 'variedad' },
+        { model: Presentacion, as: 'presentacion' },
+        { model: Proveedor, as: 'proveedor' }
+      ]
+    });
+
+    // Filtrar items con stock bajo
+    const itemsStockBajo = inventario.filter(item => {
+      if (item.stock_minimo) {
+        return item.stock < item.stock_minimo;
+      }
+      return false;
+    });
+
+    // Ordenar por criticidad (los más críticos primero)
+    itemsStockBajo.sort((a, b) => {
+      const ratioA = a.stock / a.stock_minimo;
+      const ratioB = b.stock / b.stock_minimo;
+      return ratioA - ratioB;
+    });
+
+    res.json({
+      success: true,
+      count: itemsStockBajo.length,
+      data: itemsStockBajo
+    });
+  } catch (error) {
+    console.error('Error en getStockBajo:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener items con stock bajo',
+      error: error.message
+    });
+  }
+};
+
+// Eliminar item (soft delete)
+exports.delete = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const item = await Inventario.findByPk(id);
+
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: 'Item no encontrado'
+      });
+    }
+
+    await item.update({ 
+      activo: false,
+      actualizado_en: new Date()
+    });
+
+    res.json({
+      success: true,
+      message: 'Item eliminado exitosamente'
+    });
+  } catch (error) {
+    console.error('Error al eliminar item:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al eliminar el item',
+      error: error.message
+    });
+  }
+};
+
+// Alias para compatibilidad con el frontend
+exports.getAll = exports.obtenerInventario;
+exports.getById = exports.obtenerItemInventario;
+exports.create = exports.crearItemInventario;
+exports.update = exports.actualizarItemInventario;
+exports.getAlertas = exports.obtenerAlertas;
+
+module.exports = exports;

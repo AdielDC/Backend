@@ -89,16 +89,20 @@ const MovimientosInventario = sequelize.define('MovimientosInventario', {
   updatedAt: false,
   indexes: [
     {
-      fields: ['inventario_id', 'fecha_movimiento']
+      fields: ['inventario_id', 'fecha_movimiento'],
+      name: 'idx_inv_fecha' // Nombre corto y único
     },
     {
-      fields: ['tipo_movimiento']
+      fields: ['tipo_movimiento'],
+      name: 'idx_tipo_mov' // Nombre corto y único
     },
     {
-      fields: ['recepcion_id']
+      fields: ['recepcion_id'],
+      name: 'idx_recep_id' // Nombre corto y único
     },
     {
-      fields: ['entrega_id']
+      fields: ['entrega_id'],
+      name: 'idx_entre_id' // Nombre corto y único
     }
   ]
 });
