@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const Usuario = require('../models/Usuario');
 const logger = require('../utils/logger');
 
 const authenticate = async (req, res, next) => {
@@ -24,9 +24,9 @@ const authenticate = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret');
     
     // Buscar usuario
-    const user = await User.findByPk(decoded.userId);
+    const usuario = await Usuario.findByPk(decoded.userId);
 
-    if (!user || !user.active) {
+    if (!usuario || !usuario.activo) {
       logger.warn(`Intento de acceso con token inválido para usuario ID: ${decoded.userId}`);
       return res.status(401).json({ 
         message: 'Token inválido o usuario inactivo' 
@@ -34,7 +34,7 @@ const authenticate = async (req, res, next) => {
     }
 
     // Añadir usuario a la request
-    req.user = user;
+    req.user = usuario;
     next();
 
   } catch (error) {
@@ -71,8 +71,8 @@ const authorize = (roles) => {
       roles = [roles];
     }
 
-    if (!roles.includes(req.user.role)) {
-      logger.warn(`Usuario ${req.user.email} intentó acceder sin permisos suficientes. Rol requerido: ${roles.join(', ')}, Rol actual: ${req.user.role}`);
+    if (!roles.includes(req.user.rol)) {
+      logger.warn(`Usuario ${req.user.email} intentó acceder sin permisos suficientes. Rol requerido: ${roles.join(', ')}, Rol actual: ${req.user.rol}`);
       return res.status(403).json({ 
         message: 'Permisos insuficientes para esta acción' 
       });
@@ -97,10 +97,10 @@ const optionalAuth = async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret');
-    const user = await User.findByPk(decoded.userId);
+    const usuario = await Usuario.findByPk(decoded.userId);
 
-    if (user && user.active) {
-      req.user = user;
+    if (usuario && usuario.activo) {
+      req.user = usuario;
     }
 
     next();

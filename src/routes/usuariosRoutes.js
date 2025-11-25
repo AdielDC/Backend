@@ -1,21 +1,22 @@
 const express = require('express');
 const router = express.Router();
-const userController = require('../controllers/user.controller');
+const usuarioController = require('../controllers/usuariosControlller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 
+// Todas las rutas requieren autenticación
 router.use(authenticate);
 
-// Rutas públicas para usuarios autenticados
-router.get('/stats', authorize(['admin']), userController.getUserStats);
-router.get('/:id', userController.getUser);
-router.put('/:id', userController.updateUser);
-router.put('/:id/change-password', userController.changeUserPassword);
+// Rutas de administrador
+router.get('/', authorize(['admin']), usuarioController.getAllUsers);
+router.get('/stats', authorize(['admin']), usuarioController.getUserStats);
+router.post('/', authorize(['admin']), usuarioController.createUser);
+router.delete('/:id', authorize(['admin']), usuarioController.deleteUser);
+router.put('/:id/deactivate', authorize(['admin']), usuarioController.deactivateUser);
+router.put('/:id/activate', authorize(['admin']), usuarioController.activateUser);
 
-// Rutas solo para admin
-router.get('/', authorize(['admin']), userController.getAllUsers);
-router.post('/', authorize(['admin']), userController.createUser);
-router.patch('/:id/deactivate', authorize(['admin']), userController.deactivateUser);
-router.patch('/:id/activate', authorize(['admin']), userController.activateUser);
-router.delete('/:id', authorize(['admin']), userController.deleteUser);
+// Rutas que pueden usar usuarios autenticados
+router.get('/:id', usuarioController.getUser);
+router.put('/:id', usuarioController.updateUser);
+router.put('/:id/password', usuarioController.changeUserPassword);
 
 module.exports = router;

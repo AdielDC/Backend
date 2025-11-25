@@ -2,11 +2,11 @@ const express = require('express');
 const router = express.Router();
 const inventarioController = require('../controllers/inventarioController');
 
-// ========== RUTAS ESPECÍFICAS (DEBEN IR PRIMERO) ==========
-// Estas rutas deben estar antes de las rutas con parámetros /:id
 
 // Obtener items con stock bajo
 router.get('/stock-bajo', inventarioController.getStockBajo);
+
+router.get('/buscar', inventarioController.buscarInventario);
 
 // Obtener alertas de inventario
 router.get('/alertas', inventarioController.obtenerAlertas);
@@ -39,5 +39,7 @@ router.put('/:id', inventarioController.actualizarItemInventario);
 
 // Eliminar item de inventario (soft delete)
 router.delete('/:id', inventarioController.delete);
+
+router.get('/buscar', inventarioController.buscarInventario);
 
 module.exports = router;

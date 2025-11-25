@@ -33,7 +33,7 @@ const Recepcion = sequelize.define('Recepcion', {
   },
   proveedor_id: {
     type: DataTypes.INTEGER,
-    allowNull: false,
+    allowNull: true,
     references: {
       model: 'PROVEEDOR',
       key: 'id'

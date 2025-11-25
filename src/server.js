@@ -1,27 +1,28 @@
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors'); // ← AGREGAR ESTA LÍNEA
+const cors = require('cors'); 
 const app = express();
 const { testConnection, sequelize } = require('./config/database');
 
-// ========== CONFIGURACIÓN DE CORS ========== 
-// ← AGREGAR ESTE BLOQUE ANTES DE LOS MIDDLEWARES
+// Configurar CORS
 const corsOptions = {
   origin: [
-    'http://localhost:3000',  // Create React App
-    'http://localhost:5173'   // Vite
+    'http://localhost:3000',  
+    'http://localhost:5173'   // Para React con Vite
   ],
   credentials: true,
   optionsSuccessStatus: 200
 };
 
-app.use(cors(corsOptions)); // ← AGREGAR ESTA LÍNEA
+app.use(cors(corsOptions)); 
 
 // Middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Importar y montar rutas
+// Importar rutas
+const authRoutes = require('./routes/authRoutes');
+const usuarioRoutes = require('./routes/usuariosRoutes');
 const inventarioRoutes = require('./routes/inventarioRoutes');
 const recepcionRoutes = require('./routes/recepcionRoutes');
 const entregaRoutes = require('./routes/entregaRoutes');
@@ -31,7 +32,21 @@ const proveedorRoutes = require('./routes/proveedorRoutes');
 const categoriaRoutes = require('./routes/categoriaRoutes');
 const variedadRoutes = require('./routes/variedadRoutes');
 const presentacionRoutes = require('./routes/presentacionRoutes');
+const setupRoutes = require('./routes/setup.routes');
 
+// ==================== RUTAS ====================
+
+// Rutas públicas (sin autenticación)
+app.use('/api/auth', authRoutes);
+
+// ⚠️ SOLO DESARROLLO: Ruta para crear usuario admin inicial
+if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+  app.use('/api/setup', setupRoutes);
+  console.log('⚠️  Ruta /api/setup habilitada (SOLO DESARROLLO)');
+}
+
+// Rutas protegidas
+app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/inventario', inventarioRoutes);
 app.use('/api/recepciones', recepcionRoutes);
 app.use('/api/entregas', entregaRoutes);
@@ -41,6 +56,59 @@ app.use('/api/proveedores', proveedorRoutes);
 app.use('/api/categorias', categoriaRoutes);
 app.use('/api/variedades', variedadRoutes);
 app.use('/api/presentaciones', presentacionRoutes);
+
+// Ruta de salud
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    service: 'Envasadora Ancestral API'
+  });
+});
+
+// Ruta raíz
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'API de Envasadora Ancestral - Sistema de Gestión de Inventarios',
+    version: '1.0.0',
+    endpoints: {
+      auth: '/api/auth',
+      setup: process.env.NODE_ENV === 'development' ? '/api/setup' : 'disabled',
+      usuarios: '/api/usuarios',
+      inventario: '/api/inventario',
+      recepciones: '/api/recepciones',
+      entregas: '/api/entregas',
+      clientes: '/api/clientes',
+      marcas: '/api/marcas',
+      proveedores: '/api/proveedores',
+      categorias: '/api/categorias',
+      variedades: '/api/variedades',
+      presentaciones: '/api/presentaciones',
+      health: '/health'
+    }
+  });
+});
+
+// Manejo de rutas no encontradas
+app.use((req, res) => {
+  res.status(404).json({ 
+    message: 'Ruta no encontrada',
+    path: req.path,
+    method: req.method
+  });
+});
+
+// Manejo global de errores
+app.use((err, req, res, next) => {
+  console.error('Error no manejado:', err);
+  
+  res.status(err.status || 500).json({
+    message: err.message || 'Error interno del servidor',
+    ...(process.env.NODE_ENV === 'development' && { 
+      stack: err.stack 
+    })
+  });
+});
 
 const PORT = process.env.PORT || 3000;
 
@@ -58,11 +126,16 @@ const startServer = async () => {
     // Iniciar servidor
     app.listen(PORT, () => {
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('🚀 Servidor corriendo en puerto', PORT);
-      console.log('📍 Ambiente:', process.env.NODE_ENV || 'development');
-      console.log('🌐 URL:', `http://localhost:${PORT}`);
+      console.log('🚀 Servidor de Envasadora Ancestral iniciado');
+      console.log('📊 Puerto:', PORT);
+      console.log('🌍 Ambiente:', process.env.NODE_ENV || 'development');
+      console.log('🔗 URL:', `http://localhost:${PORT}`);
       console.log('📡 API:', `http://localhost:${PORT}/api`);
-      console.log('🔐 CORS habilitado para: localhost:3000, localhost:5173'); // ← AGREGADO
+      console.log('🔐 Auth:', `http://localhost:${PORT}/api/auth`);
+      if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
+        console.log('⚙️  Setup:', `http://localhost:${PORT}/api/setup`);
+      }
+      console.log('🔒 CORS habilitado para: localhost:3000, localhost:5173');
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     });
   } catch (error) {
@@ -71,4 +144,28 @@ const startServer = async () => {
   }
 };
 
+// Manejo de errores no capturados
+process.on('unhandledRejection', (err) => {
+  console.error('❌ Unhandled Rejection:', err);
+  process.exit(1);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught Exception:', err);
+  process.exit(1);
+});
+
+// Manejo de cierre graceful
+process.on('SIGTERM', () => {
+  console.log('⚠️  SIGTERM recibido, cerrando servidor...');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('⚠️  SIGINT recibido, cerrando servidor...');
+  process.exit(0);
+});
+
 startServer();
+
+module.exports = app;

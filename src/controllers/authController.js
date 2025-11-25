@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const Usuario = require('../models/Usuario');
 const logger = require('../utils/logger');
-const { validateEmail, validatePassword } = require('../utils/helpers');
 
 const generateToken = (userId) => {
   return jwt.sign(
@@ -21,45 +20,36 @@ const login = async (req, res) => {
       });
     }
 
-    if (!validateEmail(email)) {
-      return res.status(400).json({ 
-        message: 'Formato de email inválido' 
-      });
-    }
-
-    const user = await User.findOne({ 
+    const usuario = await Usuario.findOne({ 
       where: { 
         email: email.toLowerCase().trim(), 
-        active: true 
+        activo: true 
       } 
     });
 
-    if (!user) {
+    if (!usuario) {
       logger.warn(`Intento de login fallido para email: ${email}`);
       return res.status(401).json({ 
         message: 'Credenciales inválidas' 
       });
     }
 
-    const isValidPassword = await user.validatePassword(password);
+    const isValidPassword = await usuario.validarPassword(password);
     if (!isValidPassword) {
-      logger.warn(`Contraseña incorrecta para usuario: ${user.email}`);
+      logger.warn(`Contraseña incorrecta para usuario: ${usuario.email}`);
       return res.status(401).json({ 
         message: 'Credenciales inválidas' 
       });
     }
 
-    user.last_login = new Date();
-    await user.save();
+    const token = generateToken(usuario.id);
 
-    const token = generateToken(user.id);
-
-    logger.info(`Usuario ${user.email} inició sesión exitosamente desde IP: ${req.ip}`);
+    logger.info(`Usuario ${usuario.email} inició sesión exitosamente desde IP: ${req.ip}`);
 
     res.json({
       message: 'Login exitoso',
       token,
-      user: user.toJSON()
+      user: usuario.toJSON()
     });
 
   } catch (error) {
@@ -72,59 +62,49 @@ const login = async (req, res) => {
 
 const register = async (req, res) => {
   try {
-    const { username, email, password, full_name, role } = req.body;
+    const { nombre, email, password, rol } = req.body;
 
-    if (!username || !email || !password || !full_name) {
+    if (!nombre || !email || !password) {
       return res.status(400).json({ 
-        message: 'Todos los campos son requeridos' 
+        message: 'Nombre, email y contraseña son requeridos' 
       });
     }
 
-    if (!validateEmail(email)) {
+    // Validar longitud de contraseña
+    if (password.length < 6) {
       return res.status(400).json({ 
-        message: 'Formato de email inválido' 
-      });
-    }
-
-    const passwordValidation = validatePassword(password);
-    if (!passwordValidation.isValid) {
-      return res.status(400).json({ 
-        message: passwordValidation.message 
+        message: 'La contraseña debe tener al menos 6 caracteres' 
       });
     }
 
     const { Op } = require('sequelize');
-    const existingUser = await User.findOne({
+    const existingUser = await Usuario.findOne({
       where: {
-        [Op.or]: [
-          { email: email.toLowerCase().trim() },
-          { username: username.toLowerCase().trim() }
-        ]
+        email: email.toLowerCase().trim()
       }
     });
 
     if (existingUser) {
       return res.status(400).json({ 
-        message: 'El usuario o email ya existe' 
+        message: 'El email ya está registrado' 
       });
     }
 
-    const user = await User.create({
-      username: username.toLowerCase().trim(),
+    const usuario = await Usuario.create({
+      nombre: nombre.trim(),
       email: email.toLowerCase().trim(),
-      password_hash: password,
-      full_name: full_name.trim(),
-      role: role || 'operator'
+      password: password, // Se encriptará automáticamente por el hook
+      rol: rol || 'admin'
     });
 
-    const token = generateToken(user.id);
+    const token = generateToken(usuario.id);
 
-    logger.info(`Nuevo usuario registrado: ${user.email}`);
+    logger.info(`Nuevo usuario registrado: ${usuario.email}`);
 
     res.status(201).json({
       message: 'Usuario creado exitosamente',
       token,
-      user: user.toJSON()
+      user: usuario.toJSON()
     });
 
   } catch (error) {
@@ -137,6 +117,12 @@ const register = async (req, res) => {
       });
     }
 
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(400).json({
+        message: 'El email ya está registrado'
+      });
+    }
+
     res.status(500).json({ 
       message: 'Error interno del servidor' 
     });
@@ -145,16 +131,16 @@ const register = async (req, res) => {
 
 const getProfile = async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.id);
+    const usuario = await Usuario.findByPk(req.user.id);
 
-    if (!user || !user.active) {
+    if (!usuario || !usuario.activo) {
       return res.status(404).json({ 
         message: 'Usuario no encontrado' 
       });
     }
 
     res.json({ 
-      user: user.toJSON() 
+      user: usuario.toJSON() 
     });
 
   } catch (error) {
@@ -167,27 +153,21 @@ const getProfile = async (req, res) => {
 
 const updateProfile = async (req, res) => {
   try {
-    const { full_name, email } = req.body;
-    const user = await User.findByPk(req.user.id);
+    const { nombre, email } = req.body;
+    const usuario = await Usuario.findByPk(req.user.id);
 
-    if (!user) {
+    if (!usuario) {
       return res.status(404).json({ 
         message: 'Usuario no encontrado' 
       });
     }
 
-    if (email && email !== user.email) {
-      if (!validateEmail(email)) {
-        return res.status(400).json({ 
-          message: 'Formato de email inválido' 
-        });
-      }
-
+    if (email && email !== usuario.email) {
       const { Op } = require('sequelize');
-      const emailExists = await User.findOne({
+      const emailExists = await Usuario.findOne({
         where: { 
           email: email.toLowerCase().trim(),
-          id: { [Op.ne]: user.id }
+          id: { [Op.ne]: usuario.id }
         }
       });
 
@@ -197,20 +177,20 @@ const updateProfile = async (req, res) => {
         });
       }
 
-      user.email = email.toLowerCase().trim();
+      usuario.email = email.toLowerCase().trim();
     }
 
-    if (full_name) {
-      user.full_name = full_name.trim();
+    if (nombre) {
+      usuario.nombre = nombre.trim();
     }
 
-    await user.save();
+    await usuario.save();
 
-    logger.info(`Usuario ${user.email} actualizó su perfil`);
+    logger.info(`Usuario ${usuario.email} actualizó su perfil`);
 
     res.json({
       message: 'Perfil actualizado exitosamente',
-      user: user.toJSON()
+      user: usuario.toJSON()
     });
 
   } catch (error) {
@@ -231,32 +211,31 @@ const changePassword = async (req, res) => {
       });
     }
 
-    const user = await User.findByPk(req.user.id);
+    if (new_password.length < 6) {
+      return res.status(400).json({
+        message: 'La nueva contraseña debe tener al menos 6 caracteres'
+      });
+    }
+
+    const usuario = await Usuario.findByPk(req.user.id);
     
-    if (!user) {
+    if (!usuario) {
       return res.status(404).json({ 
         message: 'Usuario no encontrado' 
       });
     }
 
-    const isValidPassword = await user.validatePassword(current_password);
+    const isValidPassword = await usuario.validarPassword(current_password);
     if (!isValidPassword) {
       return res.status(400).json({
         message: 'Contraseña actual incorrecta'
       });
     }
 
-    const passwordValidation = validatePassword(new_password);
-    if (!passwordValidation.isValid) {
-      return res.status(400).json({
-        message: passwordValidation.message
-      });
-    }
+    usuario.password = new_password; // Se encriptará automáticamente por el hook
+    await usuario.save();
 
-    user.password_hash = new_password;
-    await user.save();
-
-    logger.info(`Usuario ${user.email} cambió su contraseña`);
+    logger.info(`Usuario ${usuario.email} cambió su contraseña`);
 
     res.json({
       message: 'Contraseña actualizada exitosamente'
