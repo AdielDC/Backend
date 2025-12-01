@@ -16,7 +16,10 @@ const DetalleEntrega = require('./DetalleEntrega');
 const MovimientosInventario = require('./MovimientosInventario');
 const LotesProduccion = require('./LotesProduccion');
 const AlertasInventario = require('./AlertasInventario');
-
+// Tablas intermedias creadas para clientes
+const ClienteVariedad = require('./ClienteVariedad')(sequelize, DataTypes);
+const ClientePresentacion = require('./ClientePresentacion')(sequelize, DataTypes);
+const ClienteTipo = require('./ClienteTipo')(sequelize, DataTypes);
 // ==================== RELACIONES ====================
 
 // MARCA - CLIENTE
@@ -179,6 +182,47 @@ AlertasInventario.belongsTo(Usuario, {
   as: 'resuelta_por_usuario' 
 });
 
+// ClienteVariedad -> VariedadesAgave
+ClienteVariedad.belongsTo(VariedadesAgave, { 
+  foreignKey: 'variedad_agave_id', 
+  as: 'variedad'  // ← Este alias se usa en el controlador
+});
+
+// ClientePresentacion -> Presentacion  
+ClientePresentacion.belongsTo(Presentacion, { 
+  foreignKey: 'presentacion_id', 
+  as: 'presentacion'  // ← Este alias se usa en el controlador
+});
+
+// Relaciones inversas (opcional pero útil)
+VariedadesAgave.hasMany(ClienteVariedad, {
+  foreignKey: 'variedad_agave_id',
+  as: 'clientesVariedad'
+});
+
+Presentacion.hasMany(ClientePresentacion, {
+  foreignKey: 'presentacion_id',
+  as: 'clientesPresentacion'
+});
+
+// ClienteVariedad -> Cliente
+ClienteVariedad.belongsTo(Cliente, {
+  foreignKey: 'cliente_id',
+  as: 'cliente'
+});
+
+// ClientePresentacion -> Cliente
+ClientePresentacion.belongsTo(Cliente, {
+  foreignKey: 'cliente_id',
+  as: 'cliente'
+});
+
+// ClienteTipo -> Cliente
+ClienteTipo.belongsTo(Cliente, {
+  foreignKey: 'cliente_id',
+  as: 'cliente'
+});
+
 // ==================== EXPORTAR ====================
 
 module.exports = {
@@ -189,6 +233,7 @@ module.exports = {
   Presentacion,
   CategoriaInsumo,
   VariedadesAgave,
+  VariedadAgave: VariedadesAgave, 
   Proveedor,
   Inventario,
   Recepcion,
@@ -197,5 +242,8 @@ module.exports = {
   DetalleEntrega,
   MovimientosInventario,
   LotesProduccion,
-  AlertasInventario
+  AlertasInventario,
+  ClienteVariedad,
+  ClientePresentacion,
+  ClienteTipo
 };

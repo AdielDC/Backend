@@ -33,6 +33,7 @@ const categoriaRoutes = require('./routes/categoriaRoutes');
 const variedadRoutes = require('./routes/variedadRoutes');
 const presentacionRoutes = require('./routes/presentacionRoutes');
 const setupRoutes = require('./routes/setup.routes');
+const clienteConfigRoutes = require('./routes/clienteConfigRoutes');
 
 // ==================== RUTAS ====================
 
@@ -50,6 +51,7 @@ app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/inventario', inventarioRoutes);
 app.use('/api/recepciones', recepcionRoutes);
 app.use('/api/entregas', entregaRoutes);
+app.use('/api/cliente-config', clienteConfigRoutes);
 app.use('/api/clientes', clienteRoutes);
 app.use('/api/marcas', marcaRoutes);
 app.use('/api/proveedores', proveedorRoutes);

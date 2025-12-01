@@ -6,7 +6,7 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Importar y montar rutas
+// Importar rutas
 const inventarioRoutes = require('./src/routes/inventarioRoutes');
 const recepcionRoutes = require('./src/routes/recepcionRoutes');
 const entregaRoutes = require('./src/routes/entregaRoutes');
@@ -17,10 +17,21 @@ const categoriaRoutes = require('./src/routes/categoriaRoutes');
 const variedadRoutes = require('./src/routes/variedadRoutes');
 const presentacionRoutes = require('./src/routes/presentacionRoutes');
 
+// 🧪 LOG DE DIAGNÓSTICO
+console.log('🔍 Intentando cargar clienteConfigRoutes...');
+const clienteConfigRoutes = require('./src/routes/clienteConfigRoutes');
+console.log('✅ clienteConfigRoutes cargado:', typeof clienteConfigRoutes);
+
 app.use('/api/inventario', inventarioRoutes);
 app.use('/api/recepciones', recepcionRoutes);
 app.use('/api/entregas', entregaRoutes);
 app.use('/api/clientes', clienteRoutes);
+
+// 🧪 LOG ANTES DE MONTAR
+console.log('🔍 Montando /api/cliente-config...');
+app.use('/api/cliente-config', clienteConfigRoutes);
+console.log('✅ /api/cliente-config montado');
+
 app.use('/api/marcas', marcaRoutes);
 app.use('/api/proveedores', proveedorRoutes);
 app.use('/api/categorias', categoriaRoutes);

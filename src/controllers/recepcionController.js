@@ -144,7 +144,13 @@ exports.crearRecepcion = async (req, res) => {
       recibido_por,
       notas_adicionales,
       usuario_id,
-      detalles // Array de { inventario_id, cantidad, unidad, notas }
+      detalles, // Array de { inventario_id, cantidad, unidad, notas }
+      // ========================================
+      // NUEVOS CAMPOS DEL FRONTEND
+      // ========================================
+      variedad_agave_id,
+      presentacion_id,
+      tipo
     } = req.body;
 
     // Validar datos requeridos
@@ -156,7 +162,15 @@ exports.crearRecepcion = async (req, res) => {
       });
     }
 
-    console.log('📦 Creando recepción con', detalles.length, 'detalles');
+    console.log('\n========================================');
+    console.log('📦 CREANDO RECEPCIÓN');
+    console.log('========================================');
+    console.log('📅 Fecha:', fecha_recepcion);
+    console.log('👤 Cliente ID:', cliente_id);
+    console.log('🍃 Variedad ID:', variedad_agave_id || 'No especificada');
+    console.log('📏 Presentación ID:', presentacion_id || 'No especificada');
+    console.log('📋 Tipo:', tipo || 'No especificado');
+    console.log('📦 Detalles:', detalles.length, 'items');
 
     // Generar número de recepción único
     const ultimaRecepcion = await Recepcion.findOne({
@@ -194,6 +208,7 @@ exports.crearRecepcion = async (req, res) => {
     // Procesar cada detalle
     let detallesCreados = 0;
     let inventarioActualizado = 0;
+    let inventarioConDatosActualizados = 0;
 
     for (const detalle of detalles) {
       console.log(`\n📦 Procesando detalle para inventario_id: ${detalle.inventario_id}`);
@@ -237,11 +252,41 @@ exports.crearRecepcion = async (req, res) => {
 
       console.log(`📊 Stock nuevo: ${stockNuevo} (anterior: ${stockAnterior} + recibido: ${cantidadRecibida})`);
 
-      // Actualizar stock del inventario
-      await item.update({ 
+      // ========================================
+      // PREPARAR DATOS DE ACTUALIZACIÓN
+      // ========================================
+      const updateData = {
         stock: stockNuevo,
         ultima_actualizacion: new Date()
-      }, { transaction });
+      };
+
+      // ========================================
+      // ACTUALIZAR VARIEDAD SI NO LA TIENE
+      // ========================================
+      if (!item.variedad_agave_id && variedad_agave_id) {
+        updateData.variedad_agave_id = variedad_agave_id;
+        console.log(`  🍃 Asignando variedad_agave_id: ${variedad_agave_id} al inventario ${item.id}`);
+        inventarioConDatosActualizados++;
+      }
+
+      // ========================================
+      // ACTUALIZAR PRESENTACIÓN SI NO LA TIENE
+      // ========================================
+      if (!item.presentacion_id && presentacion_id) {
+        updateData.presentacion_id = presentacion_id;
+        console.log(`  📏 Asignando presentacion_id: ${presentacion_id} al inventario ${item.id}`);
+      }
+
+      // ========================================
+      // ACTUALIZAR TIPO SI NO LO TIENE
+      // ========================================
+      if (!item.tipo && tipo) {
+        updateData.tipo = tipo;
+        console.log(`  📋 Asignando tipo: "${tipo}" al inventario ${item.id}`);
+      }
+
+      // Actualizar stock del inventario (y variedad/presentación si aplica)
+      await item.update(updateData, { transaction });
 
       inventarioActualizado++;
       console.log(`✅ Inventario ID ${item.id} actualizado correctamente`);
@@ -262,12 +307,17 @@ exports.crearRecepcion = async (req, res) => {
       console.log(`✅ Movimiento de inventario registrado`);
     }
 
-    console.log(`\n✅ Resumen: ${detallesCreados} detalles creados, ${inventarioActualizado} inventarios actualizados`);
+    console.log('\n========================================');
+    console.log('📊 RESUMEN DE LA RECEPCIÓN');
+    console.log('========================================');
+    console.log(`✅ Detalles creados: ${detallesCreados}`);
+    console.log(`✅ Inventarios actualizados (stock): ${inventarioActualizado}`);
+    console.log(`✅ Inventarios con variedad/presentación asignada: ${inventarioConDatosActualizados}`);
 
     // Commit de la transacción
     await transaction.commit();
 
-    console.log('✅ Transacción completada exitosamente');
+    console.log('✅ Transacción completada exitosamente\n');
 
     // Obtener recepción completa con relaciones
     const recepcionCompleta = await Recepcion.findByPk(recepcion.id, {
@@ -283,7 +333,9 @@ exports.crearRecepcion = async (req, res) => {
               model: Inventario,
               as: 'inventario',
               include: [
-                { model: CategoriaInsumo, as: 'categoria' }
+                { model: CategoriaInsumo, as: 'categoria' },
+                { model: VariedadesAgave, as: 'variedad' },
+                { model: Presentacion, as: 'presentacion' }
               ]
             }
           ]
