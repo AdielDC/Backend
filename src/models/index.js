@@ -177,6 +177,10 @@ AlertasInventario.belongsTo(Inventario, {
   as: 'inventario' 
 });
 
+Inventario.hasMany(AlertasInventario, {
+  foreignKey: 'inventario_id'
+});
+
 AlertasInventario.belongsTo(Usuario, { 
   foreignKey: 'resuelta_por', 
   as: 'resuelta_por_usuario' 

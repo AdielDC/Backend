@@ -24,15 +24,24 @@ const VariedadesAgave = sequelize.define('VariedadesAgave', {
     type: DataTypes.TEXT,
     allowNull: true
   },
+  activo: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true,
+    allowNull: false
+  },
   creado_en: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW
+  },
+  actualizado_en: {
+    type: DataTypes.DATE,
+    allowNull: true
   }
 }, {
   tableName: 'VARIEDADES_AGAVE',
   timestamps: true,
   createdAt: 'creado_en',
-  updatedAt: false,
+  updatedAt: 'actualizado_en', // ✅ Cambiado de false a 'actualizado_en'
   indexes: [
     {
       unique: true,
@@ -40,6 +49,5 @@ const VariedadesAgave = sequelize.define('VariedadesAgave', {
     }
   ]
 });
-
 
 module.exports = VariedadesAgave;

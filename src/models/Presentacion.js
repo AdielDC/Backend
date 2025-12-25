@@ -21,16 +21,22 @@ const Presentacion = sequelize.define('Presentacion', {
   },
   activo: {
     type: DataTypes.BOOLEAN,
-    defaultValue: true
+    defaultValue: true,
+    allowNull: false
   },
   creado_en: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW
+  },
+  actualizado_en: {
+    type: DataTypes.DATE,
+    allowNull: true
   }
 }, {
   tableName: 'PRESENTACION',
   timestamps: true,
   createdAt: 'creado_en',
-  updatedAt: false
+  updatedAt: 'actualizado_en' // ✅ Ahora Sequelize manejará automáticamente este campo
 });
+
 module.exports = Presentacion;

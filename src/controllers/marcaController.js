@@ -80,3 +80,35 @@ exports.actualizarMarca = async (req, res) => {
     });
   }
 };
+exports.eliminarMarca = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const marca = await Marca.findByPk(id);
+    if (!marca) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Marca no encontrada' 
+      });
+    }
+
+    await marca.update({ activo: false });
+
+    const marcaEliminada = await Marca.findByPk(id, {
+      include: [{ model: Cliente, as: 'cliente' }]
+    });
+
+    res.json({ 
+      success: true, 
+      message: 'Marca eliminada exitosamente',
+      data: marcaEliminada 
+    });
+  } catch (error) {
+    console.error('Error al eliminar marca:', error);
+    res.status(400).json({ 
+      success: false, 
+      message: 'Error al eliminar marca',
+      error: error.message 
+    });
+  }
+};

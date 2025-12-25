@@ -32,19 +32,13 @@ const proveedorRoutes = require('./routes/proveedorRoutes');
 const categoriaRoutes = require('./routes/categoriaRoutes');
 const variedadRoutes = require('./routes/variedadRoutes');
 const presentacionRoutes = require('./routes/presentacionRoutes');
-const setupRoutes = require('./routes/setup.routes');
 const clienteConfigRoutes = require('./routes/clienteConfigRoutes');
+const alertaRoutes = require('./routes/alertaRoutes');
 
 // ==================== RUTAS ====================
 
 // Rutas públicas (sin autenticación)
 app.use('/api/auth', authRoutes);
-
-// ⚠️ SOLO DESARROLLO: Ruta para crear usuario admin inicial
-if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
-  app.use('/api/setup', setupRoutes);
-  console.log('⚠️  Ruta /api/setup habilitada (SOLO DESARROLLO)');
-}
 
 // Rutas protegidas
 app.use('/api/usuarios', usuarioRoutes);
@@ -58,6 +52,7 @@ app.use('/api/proveedores', proveedorRoutes);
 app.use('/api/categorias', categoriaRoutes);
 app.use('/api/variedades', variedadRoutes);
 app.use('/api/presentaciones', presentacionRoutes);
+app.use('/api/alertas', alertaRoutes);
 
 // Ruta de salud
 app.get('/health', (req, res) => {
@@ -86,6 +81,7 @@ app.get('/', (req, res) => {
       categorias: '/api/categorias',
       variedades: '/api/variedades',
       presentaciones: '/api/presentaciones',
+      alertas: '/api/alertas',
       health: '/health'
     }
   });

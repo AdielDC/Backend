@@ -16,6 +16,7 @@ const proveedorRoutes = require('./src/routes/proveedorRoutes');
 const categoriaRoutes = require('./src/routes/categoriaRoutes');
 const variedadRoutes = require('./src/routes/variedadRoutes');
 const presentacionRoutes = require('./src/routes/presentacionRoutes');
+const alertaRoutes = require('./src/routes/alertaRoutes');
 
 // 🧪 LOG DE DIAGNÓSTICO
 console.log('🔍 Intentando cargar clienteConfigRoutes...');
@@ -37,5 +38,6 @@ app.use('/api/proveedores', proveedorRoutes);
 app.use('/api/categorias', categoriaRoutes);
 app.use('/api/variedades', variedadRoutes);
 app.use('/api/presentaciones', presentacionRoutes);
+app.use('/api/alertas', alertaRoutes);
 
 module.exports = app;
