@@ -6,8 +6,12 @@ const { testConnection, sequelize } = require('./config/database');
 
 // Configurar CORS
 const corsOptions = {
-  origin: true,  // Permite cualquier origin (solo temporal para pruebas)
-  credentials: true
+   origin: [
+    'http://localhost:3000',  
+    'http://localhost:5173'   // Para React con Vite
+  ],
+  credentials: true,
+  optionsSuccessStatus: 200
 };
 
 app.use(cors(corsOptions)); 
